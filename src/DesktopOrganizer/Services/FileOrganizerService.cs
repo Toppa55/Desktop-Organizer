@@ -5,6 +5,9 @@ namespace DesktopOrganizer.Services;
 
 public sealed class FileOrganizerService : IDisposable
 {
+    private static readonly TimeSpan AutoOrganizeGracePeriod = TimeSpan.FromSeconds(7);
+    private static readonly TimeSpan FileStabilityCheckInterval = TimeSpan.FromSeconds(1);
+
     private readonly LocalFileClassifier _localClassifier;
     private readonly OpenAiClassifier _aiClassifier;
     private readonly SecureSettingsService _settingsService;
@@ -55,7 +58,7 @@ public sealed class FileOrganizerService : IDisposable
         _watcher = new FileSystemWatcher(_desktopPath)
         {
             IncludeSubdirectories = false,
-            NotifyFilter = NotifyFilters.FileName | NotifyFilters.CreationTime,
+            NotifyFilter = NotifyFilters.FileName | NotifyFilters.CreationTime | NotifyFilters.LastWrite,
             EnableRaisingEvents = true
         };
 
@@ -140,12 +143,48 @@ public sealed class FileOrganizerService : IDisposable
     {
         try
         {
-            await Task.Delay(1200);
+            // Give Windows and the user time to finish the normal create/rename flow.
+            // This prevents a freshly-created "New Text Document" from being moved
+            // before the user has even had a chance to name it.
+            await Task.Delay(AutoOrganizeGracePeriod);
+
+            if (!await IsFileStableAsync(path))
+                return;
+
             await OrganizeFileAsync(path);
         }
         catch
         {
             // Background file events are deliberately non-fatal.
+        }
+    }
+
+    private static async Task<bool> IsFileStableAsync(string path)
+    {
+        if (!File.Exists(path))
+            return false;
+
+        try
+        {
+            var first = new FileInfo(path);
+            var firstLength = first.Length;
+            var firstWrite = first.LastWriteTimeUtc;
+
+            await Task.Delay(FileStabilityCheckInterval);
+
+            if (!File.Exists(path))
+                return false;
+
+            var second = new FileInfo(path);
+            return firstLength == second.Length && firstWrite == second.LastWriteTimeUtc;
+        }
+        catch (IOException)
+        {
+            return false;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return false;
         }
     }
 

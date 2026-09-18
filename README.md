@@ -1,73 +1,42 @@
-# Desktop Organizer
+# Feed Drift — MVP
 
-A lightweight Windows desktop utility that keeps your Desktop tidy in the background using fast local rules and optional AI-assisted classification.
+Feed Drift is a local-first prototype for detecting changes in the visual character of your Instagram feed relative to your own baseline.
 
-Desktop Organizer is built around a simple idea: the user should not have to constantly maintain folders, rename files, or manually clean a cluttered Desktop. The app watches for new files, handles obvious cases locally, and can use the OpenAI API when a file needs more context.
+## What this version does
 
-## What it does
+- Accepts an iPhone/Android/desktop screen recording.
+- Samples one frame every 1.5–3 seconds.
+- Runs NSFWJS in the browser and converts its `Sexy`, `Porn`, and `Hentai` probabilities into a *sexual-content exposure* signal.
+- Stores only scan summaries in browser `localStorage`; the selected video is not saved by the app.
+- Builds an initial baseline from the first 7 scans by default.
+- Compares the latest 48-hour average with that baseline and shows Stable / Watch / Drifting states.
+- Allows an optional 1–5 mood check-in during the learning period.
+- Exports summary data as JSON.
+- Installs as a PWA when served over HTTPS.
 
-- Watches the Windows Desktop without continuously scanning the disk.
-- Sorts obvious file types locally for speed and low resource usage.
-- Uses optional OpenAI-powered classification for ambiguous files.
-- Stores the user's API key encrypted for the current Windows account.
-- Runs quietly in the system tray and can be opened at any time.
-- Keeps an activity history of file moves.
-- Provides one-click Undo for organized files.
-- Ignores shortcuts, folders, hidden/system files, and common temporary files.
-- Keeps automatic sorting off by default until the user enables it.
+## Important limitations
 
-## Design goals
+This is a personal pattern detector, not a diagnostic or clinical tool. The image classifier will make mistakes. Treat the value as a repeatable signal to compare with your own history, not an objective measure of sexual content.
 
-**Simple for the user.** Open the app, add an API key if AI classification is wanted, and let it work.
+The first run requires an internet connection to fetch TensorFlow.js, NSFWJS and its model. Classification then runs in the browser. For a production/private deployment, vendor the JS and model assets into the project instead of loading them from a CDN.
 
-**Quiet in the background.** The app uses Windows file-system events instead of repeatedly scanning the Desktop.
+## Easiest iPhone setup
 
-**AI where it is useful.** Images, installers, archives and other obvious files do not need an LLM. AI is reserved for files where filename/context can improve the decision.
+1. Upload this folder to any static HTTPS host (GitHub Pages, Netlify, Cloudflare Pages, etc.).
+2. Open the site in Safari.
+3. Share → Add to Home Screen.
+4. Screen-record 60–120 seconds of normal Instagram scrolling.
+5. Open Feed Drift and select the recording.
+6. Repeat periodically; the first 7 scans form the default baseline.
 
-**Safe by default.** Desktop Organizer does not delete files. File moves are logged and can be undone.
+## Local desktop test
 
-## Current status
+From the folder:
 
-Early development / alpha. The first Windows-native foundation is now in the repository. Expect behaviour and UI details to evolve while the core workflow is refined.
+    python -m http.server 8080
 
-## Technology
+Then open `http://localhost:8080`.
 
-- C# / .NET 8
-- WPF desktop UI
-- `FileSystemWatcher` for low-overhead background monitoring
-- Windows DPAPI for local API-key protection
-- OpenAI Responses API for optional AI classification
+## Privacy model
 
-## Running from source
-
-Requirements:
-
-- Windows 10 or Windows 11
-- .NET 8 SDK
-
-```powershell
-dotnet run --project src/DesktopOrganizer/DesktopOrganizer.csproj
-```
-
-The project is configured as a Windows GUI application (`WinExe`), so the released app does not depend on a command-prompt window.
-
-## Privacy
-
-The core organizer works locally. When AI classification is enabled, Desktop Organizer sends only the metadata/context needed to classify an ambiguous file. Small text snippets may be included for supported text-based files. The application does not intentionally upload entire files for classification.
-
-## Safety
-
-Desktop Organizer is deliberately conservative:
-
-- it never deletes files;
-- it does not move folders;
-- it ignores shortcuts and temporary/system files;
-- every successful move is written to the activity history;
-- moved files can be restored with Undo;
-- if a destination filename already exists, a unique filename is generated instead of overwriting it.
-
-## License
-
-Copyright © 2026 Thomas Stemmet. All rights reserved.
-
-This repository is publicly viewable, but the software is proprietary. See [LICENSE](LICENSE) for the full terms.
+Raw screen recordings are opened through a browser object URL, sampled in memory, and released after analysis. Only aggregate metrics are written to localStorage. This prototype does not upload the recording to a backend.
